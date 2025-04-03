@@ -11,10 +11,25 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final FirebaseFirestore db = FirebaseFirestore.instance;
+  
+  
+  //crate an empty list of maps which represents our tasks
   final List<Map<String, dynamic>> tasks = [];
+
+  //create variables that  captures the input of a text input
+  final TextEditingController taskController = TextEditingController();
+
+
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold();
+    return  Scaffold(
+      appBar: AppBar(
+       backgroundColor: Colors.blue,
+       title: Row(children: [
+
+       ],)
+      ),
+    );
   }
 }
