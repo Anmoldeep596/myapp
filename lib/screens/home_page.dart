@@ -25,7 +25,7 @@ class _HomePageState extends State<HomePage> {
     fetchTasks();
   }
 
-  //Fetch tasks from the db also update the taks list in memory
+  //Fetch tasks from the db and also update the task list in memory
   Future<void> fetchTasks() async {
     final snapshots = await db.collection('tasks').orderBy('timestamp').get();
 
@@ -53,6 +53,16 @@ class _HomePageState extends State<HomePage> {
         'completed': false,
         'timestamp': FieldValue.serverTimestamp(),
       };
+
+      //docRef gives us  the informayion id form the document
+
+      final docRef = await db.collection('tasks').add(newTask);
+
+      // add the task locally
+      setState(() {
+        tasks.add({'id': docRef.id, ...newTask});
+      });
+      nameController.clear();
     }
   }
 
@@ -62,6 +72,7 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         backgroundColor: Colors.blue,
         title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             Expanded(child: Image.asset('assets/rdplogo.png', height: 80)),
             Text(
@@ -75,19 +86,25 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-      body: Column(
-        children: [
-          Column(
-            children: [
-              TableCalendar(
+      body: SafeArea(
+        child: Column(
+          children: [
+            SizedBox(
+              height: 340,
+              child: TableCalendar(
                 calendarFormat: CalendarFormat.month,
                 focusedDay: DateTime.now(),
                 firstDay: DateTime(2025),
                 lastDay: DateTime(2026),
               ),
-            ],
-          ),
-        ],
+            ),
+            Expanded(
+              child: Container(
+                child: buildAddTaskSection(nameController, addTask),
+              ),
+            ),
+          ],
+        ),
       ),
       drawer: Drawer(),
     );
@@ -95,29 +112,33 @@ class _HomePageState extends State<HomePage> {
 }
 
 //Build the section for adding tasks
-Widget buildAddTaskSection(namecontroller) {
+Widget buildAddTaskSection(nameController, addTask) {
   return Padding(
     padding: const EdgeInsets.all(12.0),
     child: Row(
       children: [
-        Container(
-          decoration: BoxDecoration(color: Colors.white),
+        Expanded(
           child: TextField(
             maxLength: 32,
-            controller: namecontroller,
+            controller: nameController,
             decoration: InputDecoration(
               labelText: 'Add Task',
               border: OutlineInputBorder(),
             ),
           ),
         ),
-        ElevatedButton(onPressed: null, child: Text('Add Task')),
+        ElevatedButton(
+          onPressed: () {
+            addTask();
+          },
+          child: Text('Add Task'),
+        ),
       ],
     ),
   );
 }
 
-Widget buildTaskLists(tasks) {
+Widget buildTaskList(tasks) {
   return ListView.builder(
     physics: NeverScrollableScrollPhysics(),
     itemCount: tasks.length,
