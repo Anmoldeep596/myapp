@@ -1,215 +1,190 @@
-import 'package:flutter/material.dart'; // This lets us use all Flutter UI widgets
-import 'package:firebase_core/firebase_core.dart'; // This is needed to connect Flutter with Firebase
-import 'package:cloud_firestore/cloud_firestore.dart'; // This lets us use Firestore database
-import 'package:table_calendar/table_calendar.dart'; // This gives us the calendar widget
+import 'package:flutter/material.dart'; // Flutter's material UI components
+import 'package:firebase_core/firebase_core.dart'; // Required for Firebase initialization
+import 'package:cloud_firestore/cloud_firestore.dart'; // Firebase Firestore for database operations
+import 'package:table_calendar/table_calendar.dart'; // Calendar widget to display dates
 
-// This is the main screen of our app, which can change (StatefulWidget)
+// HomePage widget, which is a StatefulWidget since it will change based on user input
 class HomePage extends StatefulWidget {
-  const HomePage({super.key}); // This is the constructor
+  const HomePage({super.key}); // Constructor
 
   @override
-  State<HomePage> createState() => _HomePageState(); // This tells Flutter to use _HomePageState for this screen
+  State<HomePage> createState() => _HomePageState(); // Creates the mutable state for HomePage
 }
 
-// This is the part where all the logic and UI of the HomePage happens
+// This class contains the logic and UI for the HomePage screen
 class _HomePageState extends State<HomePage> {
-  final FirebaseFirestore db =
-      FirebaseFirestore
-          .instance; //new firestore instance (used to read/write in Firestore)
+  // Firestore instance used to interact with the Firebase database
+  final FirebaseFirestore db = FirebaseFirestore.instance;
 
-  final TextEditingController nameController =
-      TextEditingController(); //captures textform input (used to get what user types)
+  // TextEditingController used to capture and control the user's input for task name
+  final TextEditingController nameController = TextEditingController();
 
-  final List<Map<String, dynamic>> tasks =
-      []; // This will store all tasks temporarily in the app
+  // List that stores the task data locally as a list of maps (id, name, completed)
+  final List<Map<String, dynamic>> tasks = [];
 
+  // initState is called once when the widget is inserted in the widget tree
   @override
   void initState() {
-    super.initState(); // First, run the normal Flutter initialization
-    fetchTasks(); // Then call our custom function to load tasks from Firestore
+    super.initState(); // Call the parent initState method
+    fetchTasks(); // Load tasks from Firestore into local list
   }
 
-  //Fetches tasks from the firestore and update local task list
+  // Future function that retrieves tasks from Firestore and updates the local task list
   Future<void> fetchTasks() async {
-    final snapshot =
-        await db
-            .collection('tasks')
-            .orderBy('timestamp')
-            .get(); // Get all tasks from 'tasks' collection, ordered by time
+    // Fetch all documents from 'tasks' collection, ordered by timestamp
+    final snapshot = await db.collection('tasks').orderBy('timestamp').get();
 
     setState(() {
-      // This tells Flutter to refresh the UI
-      tasks.clear(); // Remove old tasks
+      // Clear the current task list before adding new items
+      tasks.clear();
+
+      // Convert each document into a map and add to local list
       tasks.addAll(
-        // Add all new tasks from Firestore
         snapshot.docs.map(
           (doc) => {
-            'id': doc.id, // Get Firestore document ID
-            'name': doc.get('name'), // Get the task name
-            'completed':
-                doc.get('completed') ??
-                false, // Get completed status, if not found then use false
+            'id': doc.id, // Document ID used for update/delete
+            'name': doc.get('name'), // Task name
+            'completed': doc.get('completed') ?? false, // Task status; default false
           },
         ),
       );
     });
   }
 
-  //Function that adds new tasks to local state & firestore database
+  // Future function that adds a new task to both Firestore and local task list
   Future<void> addTask() async {
-    final taskName =
-        nameController.text.trim(); // Get the task name from the text field
+    // Get the text entered by the user and remove extra spaces
+    final taskName = nameController.text.trim();
 
+    // Only proceed if the input is not empty
     if (taskName.isNotEmpty) {
-      // Only proceed if task is not empty
+      // Create a new task map with name, completed status, and timestamp
       final newTask = {
-        'name': taskName, // Save task name
-        'completed': false, // Mark it not completed by default
-        'timestamp':
-            FieldValue.serverTimestamp(), // Add current time from Firebase server
+        'name': taskName,
+        'completed': false,
+        'timestamp': FieldValue.serverTimestamp(), // Timestamp generated by server
       };
 
-      //docRef gives us the insertion id of the task from the database
-      final docRef = await db
-          .collection('tasks')
-          .add(newTask); // Save this new task to Firestore
+      // Add the task to Firestore and store its document reference
+      final docRef = await db.collection('tasks').add(newTask);
 
-      //Adding tasks locally
+      // Update local task list with the new task
       setState(() {
-        tasks.add({
-          'id': docRef.id,
-          ...newTask,
-        }); // Add this task to the app’s local list
+        tasks.add({'id': docRef.id, ...newTask}); // Spread to include all newTask fields
       });
-      nameController.clear(); // Clear the text field
+
+      // Clear the text input field
+      nameController.clear();
     }
   }
 
-  //Updates the completion status of the task in Firestore & locally
+  // Future function that updates a task's completion status in Firestore and locally
   Future<void> updateTask(int index, bool completed) async {
-    final task = tasks[index]; // Get the task at the given index
+    final task = tasks[index]; // Get the selected task using index
+
+    // Update the 'completed' field in Firestore
     await db.collection('tasks').doc(task['id']).update({
-      'completed': completed, // Update its 'completed' value in Firestore
+      'completed': completed,
     });
 
+    // Update the same task in the local task list
     setState(() {
-      tasks[index]['completed'] = completed; // Also update the local value
+      tasks[index]['completed'] = completed;
     });
   }
 
-  //Delete the task locally & in the Firestore
+  // Future function that removes a task from both Firestore and the local task list
   Future<void> removeTasks(int index) async {
-    final task = tasks[index]; // Get the task to delete
+    final task = tasks[index]; // Get the task to be deleted
 
-    await db
-        .collection('tasks')
-        .doc(task['id'])
-        .delete(); // Delete it from Firestore
+    // Delete task from Firestore using document ID
+    await db.collection('tasks').doc(task['id']).delete();
 
+    // Remove task from local list to update UI
     setState(() {
-      tasks.removeAt(index); // Also remove it from our local list
+      tasks.removeAt(index);
     });
   }
 
+  // Builds the complete UI of the screen
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Scaffold is the basic layout structure
-      appBar: AppBar(
-        // This is the top app bar
-        backgroundColor: Colors.blue, // Set its background to blue
-        title: Row(
-          // Inside app bar, we use a Row
-          mainAxisAlignment:
-              MainAxisAlignment.spaceEvenly, // Space out logo and text evenly
+      appBar: AppBar( // Top bar of the app
+        backgroundColor: Colors.blue,
+        title: Row( // Layout title and logo in a row
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            Expanded(
-              child: Image.asset('assets/rdplogo.png', height: 80),
-            ), // Show the RDP logo
+            // Displays the RDP logo
+            Expanded(child: Image.asset('assets/rdplogo.png', height: 80)),
+
+            // App title text
             const Text(
-              'Daily Planner', // This is the title of the app
+              'Daily Planner',
               style: TextStyle(
-                fontFamily: 'Caveat', // Use the 'Caveat' font
-                fontSize: 32, // Text size
-                color: Colors.white, // Text color
+                fontFamily: 'Caveat',
+                fontSize: 32,
+                color: Colors.white,
               ),
             ),
           ],
         ),
       ),
-      body: Column(
-        // The main content is inside a column
+      body: Column( // Main content of the screen
         children: [
-          Expanded(
-            // This part will expand to take available space
-            child: SingleChildScrollView(
-              // Makes everything scrollable
+          Expanded( // Allows this part to take full vertical space
+            child: SingleChildScrollView( // Makes its child scrollable
               child: Column(
-                // Inside this column:
                 children: [
-                  TableCalendar(
-                    // This is the calendar widget
-                    calendarFormat:
-                        CalendarFormat.month, // Show full month view
-                    focusedDay: DateTime.now(), // Start at today's date
-                    firstDay: DateTime(
-                      2025,
-                    ), // Don't allow selecting dates before this
-                    lastDay: DateTime(
-                      2026,
-                    ), // Don't allow selecting dates after this
+                  TableCalendar( // Calendar widget showing months
+                    calendarFormat: CalendarFormat.month,
+                    focusedDay: DateTime.now(), // Highlight today's date
+                    firstDay: DateTime(2025), // Earliest allowed date
+                    lastDay: DateTime(2026), // Latest allowed date
                   ),
-                  buildTaskList(
-                    tasks,
-                    removeTasks,
-                    updateTask,
-                  ), // Show the list of tasks
+
+                  // Build the list of tasks from the local list
+                  buildTaskList(tasks, removeTasks, updateTask),
                 ],
               ),
             ),
           ),
-          buildAddTaskSection(
-            nameController,
-            addTask,
-          ), // Show the text box and add button
+
+          // Build the input section for adding tasks
+          buildAddTaskSection(nameController, addTask),
         ],
       ),
-      drawer: Drawer(), // Side navigation drawer (currently empty)
+      drawer: Drawer(), // Side navigation menu (currently empty)
     );
   }
 }
 
-//Build the section for adding tasks
+// Function that builds the input section to add new tasks
 Widget buildAddTaskSection(nameController, addTask) {
   return Container(
-    // Outer box for the input area
-    decoration: const BoxDecoration(
-      color: Colors.white,
-    ), // Set background color to white
+    decoration: const BoxDecoration(color: Colors.white),
     child: Padding(
-      // Add padding around it
-      padding: const EdgeInsets.all(12.0), // 12 pixels padding
+      padding: const EdgeInsets.all(12.0),
       child: Row(
-        // Row with input and button
         children: [
+          // Text input field where users enter their task
           Expanded(
-            // Input takes full space
             child: Container(
-              // Container for the TextField
               child: TextField(
-                // This is the input field
-                maxLength: 32, // Limit to 32 characters
-                controller: nameController, // Use the passed controller
+                maxLength: 32, // Limit the text to 32 characters
+                controller: nameController, // Controls the input
                 decoration: const InputDecoration(
-                  labelText: 'Add Task', // Label inside the box
-                  border: OutlineInputBorder(), // Show outline around the box
+                  labelText: 'Add Task', // Label inside the input box
+                  border: OutlineInputBorder(), // Border for styling
                 ),
               ),
             ),
           ),
+          // Button to add the task
           ElevatedButton(
             onPressed: addTask, //Adds tasks when pressed
-            child: Text('Add Task'), // Text on the button
+            // onPressed calls the addTask function when clicked
+            child: Text('Add Task'),
           ),
         ],
       ),
@@ -217,59 +192,52 @@ Widget buildAddTaskSection(nameController, addTask) {
   );
 }
 
-//Widget that displays the task item on the UI
+// Function that builds the list of task widgets using ListView.builder
 Widget buildTaskList(tasks, removeTasks, updateTask) {
   return ListView.builder(
-    // Builds a list automatically
-    shrinkWrap: true, // List will only take needed height
-    physics:
-        const NeverScrollableScrollPhysics(), // Disable scroll inside the list
-    itemCount: tasks.length, // Number of items in list
+    shrinkWrap: true, // List should only take up as much space as needed
+    physics: const NeverScrollableScrollPhysics(), // Disable inner scrolling
+    itemCount: tasks.length, // Total number of tasks to display
     itemBuilder: (context, index) {
-      // This function builds each item
-      final task = tasks[index]; // Get the task at the current index
-      final isEven = index % 2 == 0; // To alternate colors
+      final task = tasks[index]; // Get task at current index
+      final isEven = index % 2 == 0; // Used to alternate background color
 
       return Padding(
-        // Padding around each task
-        padding: EdgeInsets.all(1.0),
+        padding: EdgeInsets.all(1.0), // Small padding around task item
         child: ListTile(
-          // ListTile shows one task
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ), // Rounded corners
-          tileColor: isEven ? Colors.blue : Colors.green, // Alternate colors
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), // Rounded edges
+          tileColor: isEven ? Colors.blue : Colors.green, // Alternate color per row
+
+          // Icon to show whether task is completed or not
           leading: Icon(
-            // Icon on the left
-            task['completed']
-                ? Icons.check_circle
-                : Icons.circle_outlined, // Check or circle icon
+            task['completed'] ? Icons.check_circle : Icons.circle_outlined,
           ),
+
+          // Display the task name
           title: Text(
-            // Task name text
-            task['name'], // Show the task name
+            task['name'],
             style: TextStyle(
-              decoration:
-                  task['completed']
-                      ? TextDecoration.lineThrough
-                      : null, // Strike-through if completed
-              fontSize: 22, // Font size
+              decoration: task['completed'] ? TextDecoration.lineThrough : null, // Strike-through if done
+              fontSize: 22,
             ),
           ),
+
+          // Right side of the tile - checkbox and delete button
           trailing: Row(
-            // Buttons on the right
-            mainAxisSize: MainAxisSize.min, // Don't take full width
+            mainAxisSize: MainAxisSize.min,
             children: [
+              // Checkbox to toggle task completed status
               Checkbox(
-                // Checkbox for completion
-                value: task['completed'], // Show checked or not
-                onChanged:
-                    (value) => updateTask(index, value!), // Update when checked
+                value: task['completed'],
+                // onChanged calls updateTask when checkbox is clicked
+                onChanged: (value) => updateTask(index, value!),
               ),
+
+              // Button to delete a task
               IconButton(
-                // Delete icon
-                icon: Icon(Icons.delete), // Trash icon
-                onPressed: () => removeTasks(index), // Delete the task
+                icon: Icon(Icons.delete),
+                // onPressed calls removeTasks to delete task
+                onPressed: () => removeTasks(index),
               ),
             ],
           ),
